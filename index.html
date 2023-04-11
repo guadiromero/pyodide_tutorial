@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.20.0/full/pyodide.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+
+  <body class="bg-indigo-50">
+    <div id="app" class="relative h-full max-w-7xl mx-auto my-16"></div>
+    <script>
+      class App {
+        state = {
+          accidents:[],
+        }
+
+        view() {
+          return (`
+            <div class="px-4 sm:px-6 lg:px-8">
+              <div class="sm:flex sm:items-center">
+                <div class="sm:flex-auto">
+                  <h1 class="text-4xl font-semibold text-gray-600 text-center">Strassenverkehrsunfaelle in Berlin 2021</h1>
+                </div>
+              </div>
+              <!-- Start of statistics --!>
+              <div class="mt-8 flex flex-col">
+                <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                  <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+                    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                      <table class="min-w-full divide-y divide-gray-300">
+                        <thead class="bg-gray-50">
+                          <tr>
+                            <th scope="col" class="whitespace-nowrap py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Rang</th>
+                            <th scope="col" class="whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900">Bezirk</th>
+                            <th scope="col" class="whitespace-nowrap px-2 py-3.5 text-left text-sm font-semibold text-gray-900">Anzahl</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                          ${this.state.accidents.length > 0 ? JSON.parse(this.state.accidents).map(function (stats) {
+                            return (`
+                              <tr id=${stats.rang}>
+                                <td class="whitespace-nowrap py-2 pl-4 pr-3 text-sm text-gray-500 sm:pl-6">${stats.rang}</td>
+                                <td class="whitespace-nowrap px-2 py-2 text-sm font-medium text-gray-900">${stats.bezirk}</td>
+                                <td class="whitespace-nowrap px-2 py-2 text-sm text-gray-500">${stats.anzahl}</td>
+                              </tr>
+                            `)
+                          }).join('') : (`
+                            <tr>
+                              <td class="whitespace-nowrap py-2 pl-4 pr-3 text-sm text-gray-500 sm:pl-6">Statistiken werden geladen...</td>
+                              <td class="whitespace-nowrap px-2 py-2 text-sm font-medium text-gray-900">Statistiken werden geladen...</td>
+                              <td class="whitespace-nowrap px-2 py-2 text-sm text-gray-500">Statistiken werden geladen...</td>
+                            </tr>
+                          `)
+                          }
+                        </tbody>
+                      </table>
+                    <div>
+                  </div>
+                </div>
+              </div>
+              <!-- End of statistics --!>
+            </div>
+          `)
+        }
+
+        render() {
+          app.innerHTML = this.view();
+        }
+      }
+
+      var appComponent = new App();
+
+      appComponent.render();
+
+      async function main() {
+        let pyodide = await loadPyodide();
+        await pyodide.loadPackage("pandas");
+        await pyodide.runPythonAsync(`
+            import js
+            import pandas as pd
+            from pyodide.http import pyfetch
+
+            # Fetch the CSV and write it to memory
+            url = "https://raw.githubusercontent.com/guadiromero/pyodide_tutorial/main/berlin_unfaelle_2021.csv"
+            response = await pyfetch(url)
+            if response.status == 200:
+                with open("accidents.csv", "wb") as f:
+                    f.write(await response.bytes())
+
+            # Load the csv file
+            accidents = pd.read_csv("accidents.csv", sep=";", decimal=",")
+
+            # Reorganize columns
+            accidents = accidents[["BEZ"]]
+            accidents = accidents.rename({"BEZ": "bezirk"}, axis="columns")
+            accidents.insert(1, "anzahl", "")
+
+            # Count accidents per neighbourhood
+            accidents = accidents.groupby(["bezirk"], as_index=False).count()
+            accidents.sort_values(by=["anzahl"], inplace=True, ascending=False, ignore_index=True)
+            accidents.index += 1
+            accidents.insert(0, "rang", accidents.index)
+
+            # Map neighbourhood names
+            mapping = {
+                1: "Mitte",
+                2: "Friedrichshain-Kreuzberg",
+                3: "Pankow",
+                4: "Charlottenburg-Wilmersdorf",
+                5: "Spandau",
+                6: "Steglitz-Zehlendorf",
+                7: "Tempelhof-Schoeneberg",
+                8: "Neukoelln",
+                9: "Treptow-Koepenick",
+                10: "Marzahn-Hellersdorf",
+                11: "Lichtenberg",
+                12: "Reinickendorf"
+            }
+
+            accidents["bezirk"].replace(mapping, inplace=True)
+
+            # Convert the DataFrame to a JSON object
+            accidents_list = accidents.to_json(orient="records")
+
+            # Set accident statistics to the state
+            js.window.appComponent.state.accidents = accidents_list
+            js.window.appComponent.render()
+          `);
+      }
+      main();
+
+    </script>
+  </body>
+</html>
