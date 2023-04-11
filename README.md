@@ -10,7 +10,7 @@ Zusätzlich präsentieren wir eine Karte von Berlin mit allen Unfallorten.
 
 ![](https://github.com/guadiromero/pyodide_tutorial/blob/main/plot.png)
 
-Die Karte kann mit dem folgenden Befehl gezeichnet werden.
+Die Karte kann mit dem folgenden Command gezeichnet werden.
 
 ```
 python script_plot.py [DATENSATZ] [SHAPEFILE]
